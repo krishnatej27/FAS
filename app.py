@@ -13,8 +13,10 @@ model = None
 def load_model():
     global model
     if model is None:
-        model = torch.load("fas_model.pth", map_location=torch.device("cpu"))
+        print("Loading model...")
+        model = torch.load("fas_model.pth", map_location="cpu")
         model.eval()
+        print("Model loaded")
     return model
 
 @app.get("/")
@@ -24,31 +26,31 @@ def home():
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
-        contents = await file.read()
+        print("Received request")
 
-        # Convert image
+        contents = await file.read()
+        print("Image read")
+
         image = Image.open(io.BytesIO(contents)).convert("RGB")
         image = np.array(image)
 
-        # Resize (IMPORTANT: match your model input)
         image = cv2.resize(image, (224, 224))
-
-        # Normalize
         image = image / 255.0
-        image = np.transpose(image, (2, 0, 1))  # HWC → CHW
+        image = np.transpose(image, (2, 0, 1))
         image = np.expand_dims(image, axis=0)
 
         image_tensor = torch.tensor(image, dtype=torch.float32)
 
-        # Load model
         model = load_model()
+        print("Model ready")
 
-        # Prediction
         with torch.no_grad():
             output = model(image_tensor)
             probs = torch.softmax(output, dim=1)
             prediction = torch.argmax(probs, dim=1).item()
             confidence = probs[0][prediction].item()
+
+        print("Prediction done")
 
         result = "real" if prediction == 1 else "fake"
 
@@ -58,4 +60,5 @@ async def predict(file: UploadFile = File(...)):
         }
 
     except Exception as e:
+        print("ERROR:", str(e))
         return {"error": str(e)}
